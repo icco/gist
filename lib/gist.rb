@@ -30,13 +30,16 @@ module Gist
   PROXY_HOST = PROXY ? PROXY.host : nil
   PROXY_PORT = PROXY ? PROXY.port : nil
 
+  TEMP_FILE = '.tmp_gists'
+  @@files = []
+
   # Parses command line arguments and does what needs to be done.
   def execute(*args)
     private_gist = false
     gist_extension = nil
 
     opts = OptionParser.new do |opts|
-      opts.banner = "Usage: gist [options] [filename or stdin]"
+      opts.banner = "Usage: gist [options] [filenames or stdin]"
 
       opts.on('-p', '--private', 'Make the gist private') do
         private_gist = true
@@ -106,6 +109,24 @@ module Gist
     open(GIST_URL % gist_id).read
   end
 
+  # Adds a file to the file array to be sent
+  def add_file(name, content)
+    load_files
+    @@files << {:name => name, :content => content}
+    save_files
+  end
+
+  # List files waiting to be sent
+  def list_files
+     load_files
+     ret = []
+     @@files.each do|a|
+        ret << a[:name]
+     end
+
+     return ret
+  end
+  
   # Given a url, tries to open it in your browser.
   # TODO: Linux, Windows
   def browse(url)
@@ -135,12 +156,20 @@ module Gist
 private
   # Give a file name, extension, content, and private boolean, returns
   # an appropriate payload for POSTing to gist.github.com
-  def data(name, ext, content, private_gist)
+  def data(name, ext, content, private_gist, number)
+    number = number ? 1 : number 
     return {
-      'file_ext[gistfile1]'      => ext,
-      'file_name[gistfile1]'     => name,
-      'file_contents[gistfile1]' => content
+      "file_ext[gistfile#{number}]"      => ext,
+      "file_name[gistfile#{number}]"     => name,
+      "file_contents[gistfile#{number}]" => content
     }.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
+  end
+
+  def data_files(private_gist)
+    params = {}
+    @@files.each_with_index do |file, i|
+      params.merge!(data(file[:name], nil, file[:content], private_gist, (i+1)))
+    end
   end
 
   # Returns a hash of the user's GitHub credentials if see.
@@ -150,5 +179,19 @@ private
     token = `git config --global github.token`.strip
 
     user.empty? ? {} : { :login => user, :token => token }
+  end
+
+  # Pulls file data out of the temp file
+  def load_files
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    save_files unless File.exists?(path)
+    @@files = Marshal.load(File.read(path))
+    @@files ||= []
+  end
+  
+  # Merges all files into a temp file
+  def save_files
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    File.open(path, 'w') {|f| f.puts Marshal.dump(@@files) }
   end
 end
