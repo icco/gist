@@ -7,6 +7,7 @@ Gem::Specification.new do |s|
   s.email             = "chris@ozmm.org"
   s.authors           = [ "Chris Wanstrath" ]
   s.has_rdoc          = false
+<<<<<<< HEAD
 
   s.files             = %w( README.markdown Rakefile LICENSE )
   s.files            += Dir.glob("lib/**/*")
