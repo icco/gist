@@ -6,7 +6,13 @@ Works great with Gist: The Website.
 Installation
 ------------
 
-    curl -s http://github.com/defunkt/gist/raw/master/gist.rb > gist &&
+RubyGem:
+
+    gem install gist
+
+Old school:
+
+    curl -s http://github.com/defunkt/gist/raw/master/gist > gist &&
     chmod 755 gist &&
     mv gist /usr/local/bin/gist
 
@@ -17,6 +23,7 @@ Use
     gist < file.txt
     echo secret | gist --private # or -p
     gist 1234 > something.txt
+    echo "puts :hi" | gist -t rb
 
 Authentication
 --------------
@@ -27,6 +34,23 @@ Just have your git config set up with your GitHub username and token.
     git config --global github.token "your-github-token"
 
 You can find your token under [your account](https://github.com/account).
+
+=======
+
+Proxies
+-------
+
+Set the HTTP_PROXY env variable to use a proxy.
+
+    $ HTTP_PROXY=host:port gist file.rb
+
+Manual
+------
+
+
+Visit <http://defunkt.github.com/gist/> or use:
+
+    $ gist -m
 
 Ninja vs Shark
 --------------
