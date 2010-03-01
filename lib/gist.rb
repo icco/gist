@@ -138,11 +138,11 @@ module Gist
   # Tries to copy passed content to the clipboard.
   def copy(content)
     cmd = case true
-    when system("which pbcopy > /dev/null")
+    when system("which pbcopy &> /dev/null")
       :pbcopy
-    when system("which xclip > /dev/null")
+    when system("which xclip &> /dev/null")
       :xclip
-    when system("which putclip")
+    when system("which putclip &> /dev/null")
       :putclip
     end
 
@@ -159,7 +159,7 @@ private
   def data(name, ext, content, private_gist, number)
     number = number ? 1 : number 
     return {
-      "file_ext[gistfile#{number}]"      => ext,
+      "file_ext[gistfile#{number}]"      => ext ? ext : '.txt',
       "file_name[gistfile#{number}]"     => name,
       "file_contents[gistfile#{number}]" => content
     }.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
