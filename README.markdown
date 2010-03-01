@@ -35,8 +35,6 @@ Just have your git config set up with your GitHub username and token.
 
 You can find your token under [your account](https://github.com/account).
 
-=======
-
 Proxies
 -------
 
