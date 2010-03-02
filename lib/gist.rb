@@ -72,19 +72,24 @@ module Gist
           exit
         end
 
-        # Check if arg is a file. If so, grab the content.
-        if File.exists?(file = args[0])
-          input = File.read(file)
-          gist_extension = File.extname(file) if file.include?('.')
-        else
-          abort "Can't find #{file}"
+        # loop through the rest of the args
+        args.each do|file|
+          # Check if arg is a file. If so, grab the content.
+          if File.exists?(file)
+            input = File.read(file)
+            gist_extension = File.extname(file) if file.include?('.')
+            add_file(file, File.new(file).read())
+          else
+            abort "Can't find #{file}"
+          end
         end
       else
         # Read from standard input.
         input = $stdin.read
+        write(input, private_gist, gist_extension)
       end
 
-      url = write(input, private_gist, gist_extension)
+      url = send(private_gist)
       browse(url)
       puts copy(url)
     rescue => e
@@ -92,16 +97,29 @@ module Gist
       puts opts
     end
   end
-
-  # Create a gist on gist.github.com
-  def write(content, private_gist = false, gist_extension = nil)
+  
+  # actually put the files to the net
+  def send(private_gist)
+    load_files
     url = URI.parse(CREATE_URL)
 
     # Net::HTTP::Proxy returns Net::HTTP if PROXY_HOST is nil
     proxy = Net::HTTP::Proxy(PROXY_HOST, PROXY_PORT)
-    req = proxy.post_form(url, data(nil, gist_extension, content, private_gist))
+    req = proxy.post_form(url, data(private_gist))
 
     req['Location']
+  end
+  
+  def clear
+    @@files = []
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    File.delete(path)
+  end
+
+  def write(content, private_gist = false, gist_extension = '.txt')
+    gistname = Time.now.to_i
+    gistname = "#{gistname}.txt"
+    add_file(gistname, content)
   end
 
   # Given a gist id, returns its content.
