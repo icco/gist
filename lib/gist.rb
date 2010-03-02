@@ -72,6 +72,7 @@ module Gist
           exit
         end
 
+
         # loop through the rest of the args
         args.each do|file|
           # Check if arg is a file. If so, grab the content.
@@ -100,14 +101,14 @@ module Gist
   
   # actually put the files to the net
   def send(private_gist)
-    load_files
     url = URI.parse(CREATE_URL)
 
     # Net::HTTP::Proxy returns Net::HTTP if PROXY_HOST is nil
     proxy = Net::HTTP::Proxy(PROXY_HOST, PROXY_PORT)
-    req = proxy.post_form(url, data(private_gist))
+    req = proxy.post_form(url, data_files(private_gist))
+ #   File.unlink(TEMP_FILE)
 
-    req['Location']
+    return req['Location']
   end
   
   def clear
@@ -118,7 +119,7 @@ module Gist
 
   def write(content, private_gist = false, gist_extension = '.txt')
     gistname = Time.now.to_i
-    gistname = "#{gistname}.txt"
+    gistname = "#{gistname}#{gist_extension}"
     add_file(gistname, content)
   end
 
@@ -180,14 +181,17 @@ private
       "file_ext[gistfile#{number}]"      => ext ? ext : '.txt',
       "file_name[gistfile#{number}]"     => name,
       "file_contents[gistfile#{number}]" => content
-    }.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
+    }
   end
 
   def data_files(private_gist)
+    load_files
     params = {}
     @@files.each_with_index do |file, i|
-      params.merge!(data(file[:name], nil, file[:content], private_gist, (i+1)))
+      params || data(file[:name], nil, file[:content], private_gist, (i+1))
     end
+
+    return params.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
   end
 
   # Returns a hash of the user's GitHub credentials if see.
