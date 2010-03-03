@@ -10,6 +10,9 @@
 #
 
 module Gist
+  VERSION = Version = '1.0.3'
+end
+module Gist
   module Manpage
     extend self
 
@@ -78,9 +81,6 @@ module Gist
     end
   end
 end
-module Gist
-  VERSION = Version = '1.0.3'
-end
 require 'open-uri'
 require 'net/http'
 require 'optparse'
@@ -98,12 +98,15 @@ module Gist
   PROXY_HOST = PROXY ? PROXY.host : nil
   PROXY_PORT = PROXY ? PROXY.port : nil
 
+  TEMP_FILE = '.tmp_gists'
+  @@files = []
+
   def execute(*args)
     private_gist = false
     gist_extension = nil
 
     opts = OptionParser.new do |opts|
-      opts.banner = "Usage: gist [options] [filename or stdin]"
+      opts.banner = "Usage: gist [options] [filenames or stdin]"
 
       opts.on('-p', '--private', 'Make the gist private') do
         private_gist = true
@@ -134,17 +137,21 @@ module Gist
           exit
         end
 
-        if File.exists?(file = args[0])
-          input = File.read(file)
-          gist_extension = File.extname(file) if file.include?('.')
-        else
-          abort "Can't find #{file}"
+        args.each do|file|
+          if File.exists?(file)
+            input = File.read(file)
+            gist_ext = File.extname(file) if file.include?('.')
+            add_file(file, input, gist_ext)
+          else
+            abort "Can't find #{file}"
+          end
         end
       else
         input = $stdin.read
+        write(input, private_gist, gist_extension)
       end
 
-      url = write(input, private_gist, gist_extension)
+      url = send(private_gist)
       browse(url)
       puts copy(url)
     rescue => e
@@ -152,20 +159,50 @@ module Gist
       puts opts
     end
   end
-
-  def write(content, private_gist = false, gist_extension = nil)
+  
+  def send(private_gist)
     url = URI.parse(CREATE_URL)
 
     proxy = Net::HTTP::Proxy(PROXY_HOST, PROXY_PORT)
-    req = proxy.post_form(url, data(nil, gist_extension, content, private_gist))
+    df = data_files(private_gist)
+    req = proxy.post_form(url, df)
+    File.unlink(TEMP_FILE)
 
-    req['Location']
+    return req['Location']
+  end
+  
+  def clear
+    @@files = []
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    File.delete(path)
+  end
+
+  def write(content, private_gist = false, gist_extension = '.txt')
+    gistname = Time.now.to_i
+    gistname = "#{gistname}#{gist_extension}"
+    add_file(gistname, content, gist_extension)
   end
 
   def read(gist_id)
     open(GIST_URL % gist_id).read
   end
 
+  def add_file(name, content, extension = '.txt')
+    load_files
+    @@files << {:name => name, :content => content, :extension => extension}
+    save_files
+  end
+
+  def list_files
+     load_files
+     ret = []
+     @@files.each do|a|
+        ret << a[:name]
+     end
+
+     return ret
+  end
+  
   def browse(url)
     if RUBY_PLATFORM =~ /darwin/
       `open #{url}`
@@ -174,11 +211,11 @@ module Gist
 
   def copy(content)
     cmd = case true
-    when system("which pbcopy &> /dev/null")
+    when system("type pbcopy > /dev/null")
       :pbcopy
-    when system("which xclip &> /dev/null")
+    when system("type xclip > /dev/null")
       :xclip
-    when system("which putclip &> /dev/null")
+    when system("type putclip > /dev/null")
       :putclip
     end
 
@@ -190,12 +227,16 @@ module Gist
   end
 
 private
-  def data(name, ext, content, private_gist)
-    return {
-      'file_ext[gistfile1]'      => ext ? ext : '.txt',
-      'file_name[gistfile1]'     => name,
-      'file_contents[gistfile1]' => content
-    }.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
+  def data_files(private_gist)
+    params = {}
+    @@files.each_with_index do |file, i|
+      params.merge!({
+        "file_ext[gistfile#{i+1}]" => file[:extension],
+        "file_name[gistfile#{i+1}]" => file[:name],
+        "file_contents[gistfile#{i+1}]" => file[:content]
+      })
+    end
+    params.merge(private_gist ? { 'private' => 'on' } : {}).merge(auth)
   end
 
   def auth
@@ -203,6 +244,18 @@ private
     token = `git config --global github.token`.strip
 
     user.empty? ? {} : { :login => user, :token => token }
+  end
+
+  def load_files
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    save_files unless File.exists?(path)
+    @@files = Marshal.load(File.read(path))
+    @@files ||= []
+  end
+  
+  def save_files
+    path = File.join(File.dirname(__FILE__), TEMP_FILE)
+    File.open(path, 'w') {|f| f.puts Marshal.dump(@@files) }
   end
 end
 Gist.execute(*ARGV)
