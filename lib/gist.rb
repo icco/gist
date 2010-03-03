@@ -72,14 +72,13 @@ module Gist
           exit
         end
 
-
         # loop through the rest of the args
         args.each do|file|
           # Check if arg is a file. If so, grab the content.
           if File.exists?(file)
             input = File.read(file)
-            gist_extension = File.extname(file) if file.include?('.')
-            add_file(file, File.new(file).read())
+            gist_ext = File.extname(file) if file.include?('.')
+            add_file(file, input, gist_ext)
           else
             abort "Can't find #{file}"
           end
@@ -105,8 +104,9 @@ module Gist
 
     # Net::HTTP::Proxy returns Net::HTTP if PROXY_HOST is nil
     proxy = Net::HTTP::Proxy(PROXY_HOST, PROXY_PORT)
-    req = proxy.post_form(url, data_files(private_gist))
- #   File.unlink(TEMP_FILE)
+    df = data_files(private_gist)
+    req = proxy.post_form(url, df)
+    File.unlink(TEMP_FILE)
 
     return req['Location']
   end
@@ -120,7 +120,7 @@ module Gist
   def write(content, private_gist = false, gist_extension = '.txt')
     gistname = Time.now.to_i
     gistname = "#{gistname}#{gist_extension}"
-    add_file(gistname, content)
+    add_file(gistname, content, gist_extension)
   end
 
   # Given a gist id, returns its content.
@@ -129,9 +129,9 @@ module Gist
   end
 
   # Adds a file to the file array to be sent
-  def add_file(name, content)
+  def add_file(name, content, extension = '.txt')
     load_files
-    @@files << {:name => name, :content => content}
+    @@files << {:name => name, :content => content, :extension => extension}
     save_files
   end
 
@@ -173,25 +173,17 @@ module Gist
   end
 
 private
-  # Give a file name, extension, content, and private boolean, returns
-  # an appropriate payload for POSTing to gist.github.com
-  def data(name, ext, content, private_gist, number)
-    number = number ? 1 : number 
-    return {
-      "file_ext[gistfile#{number}]"      => ext ? ext : '.txt',
-      "file_name[gistfile#{number}]"     => name,
-      "file_contents[gistfile#{number}]" => content
-    }
-  end
-
+  # Builds an appropriate payload for POSTing to gist.github.com
   def data_files(private_gist)
-    load_files
     params = {}
     @@files.each_with_index do |file, i|
-      params || data(file[:name], nil, file[:content], private_gist, (i+1))
+      params.merge!({
+        "file_ext[gistfile#{i+1}]" => file[:extension],
+        "file_name[gistfile#{i+1}]" => file[:name],
+        "file_contents[gistfile#{i+1}]" => file[:content]
+      })
     end
-
-    return params.merge(private_gist ? { 'action_button' => 'private' } : {}).merge(auth)
+    params.merge(private_gist ? { 'private' => 'on' } : {}).merge(auth)
   end
 
   # Returns a hash of the user's GitHub credentials if see.
